@@ -1,5 +1,5 @@
 module EventMachine
-  class FileNotFoundException < Exception
+  class FileNotFoundException < Errno::ENOENT
   end
 
   # EventMachine::Connection is a class that is instantiated
@@ -404,15 +404,21 @@ module EventMachine
     #
     # @see #ssl_verify_peer
     def start_tls args={}
-      priv_key, cert_chain, verify_peer = args.values_at(:private_key_file, :cert_chain_file, :verify_peer)
+      verify_peer  = args[:verify_peer]
 
-      [priv_key, cert_chain].each do |file|
-        next if file.nil? or file.empty?
-        raise FileNotFoundException,
-        "Could not find #{file} for start_tls" unless File.exists? file
+      begin
+        priv_key     = args[:private_key]
+        priv_key   ||= args[:private_key_file] ? File.open(args[:private_key_file]) : StringIO.new
+
+        cert_chain   = args[:cert_chain]
+        cert_chain ||= args[:cert_chain_file] ? File.open(args[:cert_chain_file]) : StringIO.new
+      rescue Errno::ENOENT => e
+        # re-raise with the custom exception.
+        # shim for maintaining backwards compatibility.
+        raise FileNotFoundException, e.message
       end
 
-      EventMachine::set_tls_parms(@signature, priv_key || '', cert_chain || '', verify_peer)
+      EventMachine::set_tls_parms(@signature, priv_key.read, cert_chain.read, verify_peer)
       EventMachine::start_tls @signature
     end
 

@@ -155,18 +155,34 @@ SslContext_t::SslContext_t (bool is_server, const string &privkeyfile, const str
 	SSL_CTX_set_mode (pCtx, SSL_MODE_RELEASE_BUFFERS);
 #endif
 
+  /* convert the private_key and certificate strings into structs */
+  BIO      *bio;
+  X509     *certificate;
+  EVP_PKEY *private_key;
+
+  bio = BIO_new(BIO_s_mem());
+
+  BIO_write(bio, certchainfile.c_str(), certchainfile.length());
+  certificate = PEM_read_bio_X509(bio,NULL,0,NULL);
+  assert(certificate);
+
+  BIO_write(bio, privkeyfile.c_str(), privkeyfile.length());
+  private_key = PEM_read_bio_PrivateKey(bio, NULL, 0, NULL);
+  assert(private_key);
+
+
 	if (is_server) {
 		// The SSL_CTX calls here do NOT allocate memory.
 		int e;
 		if (privkeyfile.length() > 0)
-			e = SSL_CTX_use_PrivateKey_file (pCtx, privkeyfile.c_str(), SSL_FILETYPE_PEM);
+			e = SSL_CTX_use_PrivateKey (pCtx, private_key);
 		else
 			e = SSL_CTX_use_PrivateKey (pCtx, DefaultPrivateKey);
 		if (e <= 0) ERR_print_errors_fp(stderr);
 		assert (e > 0);
 
 		if (certchainfile.length() > 0)
-			e = SSL_CTX_use_certificate_chain_file (pCtx, certchainfile.c_str());
+			e = SSL_CTX_use_certificate (pCtx, certificate);
 		else
 			e = SSL_CTX_use_certificate (pCtx, DefaultCertificate);
 		if (e <= 0) ERR_print_errors_fp(stderr);
@@ -182,12 +198,12 @@ SslContext_t::SslContext_t (bool is_server, const string &privkeyfile, const str
 	else {
 		int e;
 		if (privkeyfile.length() > 0) {
-			e = SSL_CTX_use_PrivateKey_file (pCtx, privkeyfile.c_str(), SSL_FILETYPE_PEM);
+			e = SSL_CTX_use_PrivateKey (pCtx, private_key);
 			if (e <= 0) ERR_print_errors_fp(stderr);
 			assert (e > 0);
 		}
 		if (certchainfile.length() > 0) {
-			e = SSL_CTX_use_certificate_chain_file (pCtx, certchainfile.c_str());
+			e = SSL_CTX_use_certificate (pCtx, certificate);
 			if (e <= 0) ERR_print_errors_fp(stderr);
 			assert (e > 0);
 		}
